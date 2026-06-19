@@ -21,7 +21,7 @@ buildscript {
         mavenCentral()
         gradlePluginPortal()
         maven {
-            url = 'https://central.sonatype.com/repository/maven-snapshots/'
+            url = 'https://oss.sonatype.org/content/repositories/snapshots'
             mavenContent { snapshotsOnly() }
         }
         maven {
@@ -35,10 +35,9 @@ buildscript {
         classpath "io.freefair.gradle:lombok-plugin:${project.gradleFreeFairPluginVersion}"
         classpath "com.google.cloud.tools:jib-gradle-plugin:${project.jibVersion}"
         classpath "com.bmuschko:gradle-docker-plugin:${project.gradleDockerPluginVersion}"
-        classpath "org.cyclonedx:cyclonedx-gradle-plugin:${project.gradleCyclonePluginVersion}"
         classpath "de.undercouch:gradle-download-task:${project.gradleDownloadTaskVersion}"
         classpath "org.apereo.cas:cas-server-core-api-configuration-model:${project.'cas.version'}"
-        classpath "org.apereo.cas:cas-server-support-configuration-metadata-repository:${project.'cas.version'}"
+        classpath "org.apereo.cas:cas-server-core-configuration-metadata-repository:${project.'cas.version'}"
     }
 }
 
@@ -56,7 +55,7 @@ repositories {
     mavenCentral()
     maven { url = 'https://oss.sonatype.org/content/repositories/releases' }
     maven {
-        url = 'https://central.sonatype.com/repository/maven-snapshots/'
+        url = 'https://oss.sonatype.org/content/repositories/snapshots'
         mavenContent { snapshotsOnly() }
     }
     maven {
@@ -77,28 +76,20 @@ repositories {
     }
 }
 
-
 apply plugin: "io.freefair.war-overlay"
 apply plugin: "war"
 
 apply plugin: "org.springframework.boot"
 apply plugin: "io.freefair.lombok"
-lombok {
-    version = "${project.lombokVersion}"
-}
 
-apply plugin: "org.cyclonedx.bom"
 
 
 apply from: rootProject.file("gradle/springboot.gradle")
 apply plugin: "com.google.cloud.tools.jib"
 apply plugin: "com.bmuschko.docker-remote-api"
 apply from: rootProject.file("gradle/tasks.gradle")
-apply from: rootProject.file("gradle/diff.gradle")
-apply from: rootProject.file("gradle/getjavaclass.gradle")
 
 def out = services.get(StyledTextOutputFactory).create("cas")
-def configurationCacheRequested = services.get(BuildFeatures).configurationCache.requested.getOrElse(true)
 
 configurations {
     all {
@@ -130,6 +121,7 @@ configurations {
 }
 
 war {
+    entryCompression = ZipEntryCompression.STORED
     enabled = false
 }
 
@@ -137,16 +129,19 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(project.targetCompatibility)
         def chosenJvmVendor = null
-        def jvmVendor = project.findProperty('jvmVendor') ?: ''
-        if (!jvmVendor.isEmpty()) {
-            out.withStyle(Style.Info).println("JVM vendor ${jvmVendor} is requested for the Java toolchain")
-            chosenJvmVendor = JvmVendorSpec.of(jvmVendor?.toUpperCase())
+        JvmVendorSpec.declaredFields.each { field ->
+            if (field.type == JvmVendorSpec && Modifier.isStatic(field.getModifiers())) {
+                if (field.name == project.jvmVendor?.toUpperCase()) {
+                    chosenJvmVendor = field.get(null)
+                    return
+                }
+            }
         }
         if (chosenJvmVendor != null) {
             vendor = chosenJvmVendor
             out.withStyle(Style.Success).println("Using ${chosenJvmVendor} as the JVM vendor for the Java toolchain")
-        } else if (!jvmVendor.isEmpty()) {
-            out.withStyle(Style.Info).println("JVM vendor ${jvmVendor} is not recognized")
+        } else {
+            out.withStyle(Style.Info).println("JVM vendor ${project.jvmVendor} is not recognized")
         }
     }
 }
@@ -157,14 +152,12 @@ bootBuildImage {
 
 
 ['jibDockerBuild', 'jibBuildTar', 'jib'].each { taskName ->
-    getTasksByName(taskName, true).each(it -> {
-        it.notCompatibleWithConfigurationCache("Jib is not compatible with configuration cache");
-        it.enabled = !configurationCacheRequested
-    })
-}
-
-tasks.named("jibBuildTar") {
-    dependsOn(tasks.named("jar"))
+    if (gradle.gradleVersion >= "8.0") {
+        getTasksByName(taskName, true).each(it -> {
+            it.notCompatibleWithConfigurationCache("Jib is not compatible with configuration cache");
+            it.enabled = !gradle.startParameter.isConfigurationCacheRequested()
+        })
+    }
 }
 
 def imagePlatforms = project.dockerImagePlatform.split(",")
@@ -173,7 +166,7 @@ def dockerPassword = providers.systemProperty("dockerPassword").getOrNull()
 def imageTagPostFix = providers.systemProperty("dockerImageTagPostfix").getOrElse("")
 
 jib {
-    if (configurationCacheRequested) {
+    if (gradle.gradleVersion >= "8.0" && gradle.startParameter.isConfigurationCacheRequested()) {
         out.withStyle(Style.Info).println("You are seeing this message because the Gradle configuration cache is turned on")
         out.withStyle(Style.Info).println("Running Jib tasks to produce Docker images will require the command-line option: --no-configuration-cache")
         out.withStyle(Style.Info).println("Jib does not support the Gradle configuration cache; Please see https://github.com/GoogleContainerTools/jib/issues/3132")
@@ -268,26 +261,12 @@ tasks.register("casPushDockerImage", DockerPushImage) {
     }
 }
 
-["build", "assemble", "bootWar"].each { taskName ->
-    tasks.matching { it.name == taskName }.configureEach {
-        doFirst {
-            if (project.hasProperty("appServer")) {
-                def appServer = project.findProperty("appServer") ?: ""
-                out.withStyle(Style.Success).println(
-                    "Building CAS version ${project.version} with application server ${appServer}"
-                )
-            } else {
-                out.withStyle(Style.Success).println(
-                    "Building CAS version ${project.version} without an application server"
-                )
-            }
-        }
-    }
-}
 
-tasks.named('test') {
-    useJUnitPlatform()
-    failOnNoDiscoveredTests = false
+if (project.hasProperty("appServer")) {
+    def appServer = project.findProperty('appServer') ?: ''
+    out.withStyle(Style.Success).println("Building CAS version ${project.version} with application server ${appServer}")
+} else {
+    out.withStyle(Style.Success).println("Building CAS version ${project.version} without an application server")
 }
 
 dependencies {
@@ -297,52 +276,17 @@ dependencies {
     implementation enforcedPlatform("org.apereo.cas:cas-server-support-bom:${project.'cas.version'}")
     implementation platform(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES)
 
-    def casModules = providers.gradleProperty("casModules")
-        .orElse(providers.systemProperty("casModules"))
-        .map { it.trim() }
-        .getOrElse("")
-
-    if (casModules) {
-        casModules.split(",")
-            .collect { it.trim() }
-            .findAll { it }
-            .each { module ->
-                def moduleToAdd = ""
-                if (module.contains(":")) {
-                    moduleToAdd = module
-                } else if (module.startsWith("cas-server-")) {
-                    moduleToAdd = implementation "org.apereo.cas:${module}"
-                } else if (module.contains("/")) {
-                    def parts = module.split("/", 2)
-                    def variant = parts[0].trim()
-                    def name = parts[1].trim()
-                    moduleToAdd = "org.apereo.cas:cas-server-${variant}-${name}"
-                } else {
-                    moduleToAdd = "org.apereo.cas:cas-server-support-${module}"
-                }
-                if (moduleToAdd.isEmpty()) {
-                    throw new GradleException("Unable to determine the CAS module to add for entry: ${module}")
-                } else {
-                    out.withStyle(Style.Success).println("Adding CAS module: ${moduleToAdd}")
-                    implementation moduleToAdd
-                }
-            }
-    }
-
     /**
      * Do NOT modify the lines below or else you will risk breaking the build.
      **/
     implementation "org.apereo.cas:cas-server-core-api-configuration-model"
     implementation "org.apereo.cas:cas-server-webapp-init"
 
-    if (appServer == '-tomcat') {
+    if (appServer == 'tomcat') {
         implementation "org.apereo.cas:cas-server-webapp-init-tomcat"
     }
     
     developmentOnly "org.springframework.boot:spring-boot-devtools:${project.springBootVersion}"
-    testImplementation 'org.springframework.boot:spring-boot-starter-test:${project.springBootVersion}'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    
     // developmentOnly "org.springframework.boot:spring-boot-docker-compose:${project.springBootVersion}"
         
     /**
