@@ -1,0 +1,8 @@
+{
+  "@class": "org.apereo.cas.services.CasRegisteredService",
+  "serviceId": "^(https|http|imaps)://.*",
+  "name": "All Services",
+  "id": 10000001,
+  "description": "Allow all applications to use CAS",
+  "evaluationOrder": 1000
+}

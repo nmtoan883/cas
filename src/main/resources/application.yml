@@ -19,3 +19,8 @@ server:
   port: 9090
   ssl:
     enabled: false
+
+cas:
+  service-registry:
+    json:
+      location: classpath:/services
