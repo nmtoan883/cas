@@ -51,6 +51,18 @@ jobs:
             if [ -f cas.pid ]; then kill -9 $(cat cas.pid) || true; rm cas.pid; fi
             fuser -k 9090/tcp || true
             sleep 2
+            echo "Creating Service Registry..."
+            mkdir -p services
+            cat << 'EOF' > services/HTTPSandIMAPS-10000001.json
+            {
+              "@class": "org.apereo.cas.services.CasRegisteredService",
+              "serviceId": "^(https|http|imaps)://.*",
+              "name": "All Services",
+              "id": 10000001,
+              "description": "Allow all applications to use CAS",
+              "evaluationOrder": 1000
+            }
+            EOF
             echo "Starting new CAS process..."
             nohup java -jar cas.war > cas.log 2>&1 &
             echo $! > cas.pid

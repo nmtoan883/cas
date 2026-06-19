@@ -23,4 +23,4 @@ server:
 cas:
   service-registry:
     json:
-      location: classpath:/services
+      location: file:/www/wwwroot/sso.nmt.io.vn/services
