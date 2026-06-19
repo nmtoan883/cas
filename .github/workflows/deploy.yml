@@ -48,7 +48,7 @@ jobs:
           script: |
             cd /www/wwwroot/sso.nmt.io.vn
             echo "Killing old CAS process..."
-            pkill -f 'cas.war' || true
+            pkill -f 'java -jar cas.war' || true
             sleep 2
             echo "Starting new CAS process..."
             nohup java -jar cas.war > cas.log 2>&1 &
