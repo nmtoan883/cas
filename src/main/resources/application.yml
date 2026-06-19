@@ -1,3 +1,21 @@
-# Application properties that need to be
-# embedded within the web application can be included here
+cas:
+  server:
+    name: https://sso.nmt.io.vn
+    prefix: https://sso.nmt.io.vn/cas
+  authn:
+    accept:
+      users: ''
+    jdbc:
+      query:
+        - url: jdbc:mysql://127.0.0.1:3306/sql_sso?serverTimezone=UTC&useUnicode=true&characterEncoding=UTF-8
+          user: sql_sso
+          password: 9ba8461edea27
+          driverClass: com.mysql.cj.jdbc.Driver
+          dialect: org.hibernate.dialect.MySQLDialect
+          sql: SELECT password FROM users WHERE username=?
+          fieldPassword: password
 
+server:
+  port: 9090
+  ssl:
+    enabled: false
