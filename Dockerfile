@@ -1,12 +1,9 @@
-ARG BASE_IMAGE="azul/zulu-openjdk:25"
+ARG BASE_IMAGE="azul/zulu-openjdk:21"
 
 FROM $BASE_IMAGE AS overlay
 
 ARG EXT_BUILD_COMMANDS=""
 ARG EXT_BUILD_OPTIONS=""
-
-ARG JAVA_TOOL_OPTIONS="--enable-native-access=ALL-UNNAMED"
-ENV JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS}"
 
 WORKDIR /cas-overlay
 COPY ./src src/

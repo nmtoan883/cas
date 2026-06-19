@@ -7,9 +7,9 @@ env:
 
 on:
   push:
-    branches: [ master ]
+    branches: [ 7.0 ]
   pull_request:
-    branches: [ master ]
+    branches: [ 7.0 ]
 
 concurrency:
   group: "workflow = ${{ github.workflow }}, ref = ${{ github.event.ref }}"
@@ -21,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ ubuntu-latest, macos-latest, windows-latest ]
-        jdk: [ 25 ]
+        jdk: [ 21 ]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

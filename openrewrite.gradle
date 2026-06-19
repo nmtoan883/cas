@@ -3,7 +3,7 @@ initscript {
         gradlePluginPortal()
     }
     dependencies {
-        classpath "org.openrewrite.rewrite:org.openrewrite.rewrite.gradle.plugin:7.34.0"
+        classpath "org.openrewrite:plugin:7.2.1"
     }
 }
 

@@ -6,8 +6,8 @@ WAR Overlay Type: `cas-overlay`
 
 # Versions
 
-- CAS Server `8.0.0-RC5`
-- JDK `25`
+- CAS Server `7.0.10.1`
+- JDK `21`
 
 # Build
 
@@ -46,7 +46,7 @@ This can either be done using the JDK's `keytool` utility or via the following c
 Use the password `changeit` for both the keystore and the key/certificate entries. 
 Ensure the keystore is loaded up with keys and certificates of the server.
 
-# Extension Modules
+## Extension Modules
 
 Extension modules may be specified under the `dependencies` block of the [Gradle build script](build.gradle):
 
@@ -61,20 +61,7 @@ To collect the list of all project modules and dependencies in the overlay:
 
 ```bash
 ./gradlew[.bat] dependencies
-```
-
-You may also define dynamic dependencies that are not hardcoded in the `build.gradle` file but instead are
-supplied as command-line arguments when invoking Gradle. This allows you to build CAS with a custom
-set of modules without having to edit the `build.gradle` file.
-
-| Command                                                      | Result                                                      |
-|--------------------------------------------------------------|-------------------------------------------------------------|
-| `./gradlew[.bat] build -PcasModules=xyz`                     | `implementation "org.apereo.cas:cas-server-support-xyz"`    |
-| `./gradlew[.bat] build -PcasModules=core/xyz`                | `implementation "org.apereo.cas:cas-server-core-xyz"`       |
-| `./gradlew[.bat] build -PcasModules=support/xyz`             | `implementation "org.apereo.cas:cas-server-support-xyz"`    |
-| `./gradlew[.bat] build -PcasModules=cas-server-core-xyz`     | `implementation "org.apereo.cas:cas-server-core-xyz"`       |
-
-The `casModules` property accepts a comma-separated list of CAS modules.
+```                                                                       
 
 # Deployment
 
@@ -83,14 +70,11 @@ On a successful deployment via the following methods, the server will be availab
 * `https://localhost:8443/cas`
 
 
-## Executable
+## Executable WAR
 
-Run the server web application as an executable artifact. Note that running an executable artiffact requires CAS to
-use an embedded container such as Apache Tomcat, Jetty, etc.
+Run the server web application as an executable WAR. Note that running an executable WAR requires CAS to use an embedded container such as Apache Tomcat, Jetty, etc.
 
 The current servlet container is specified as `-tomcat`.
-
-
 
 ```bash
 java -jar build/libs/cas.war
@@ -126,28 +110,28 @@ Or via:
 java -Xdebug -Xrunjdwp:transport=dt_socket,address=5000,server=y,suspend=y -jar build/libs/cas.war
 ```
 
-
-
-### AOT Support
-
-The ahead-of-time cache is a JVM feature that can help reduce the startup time and memory footprint of Java applications.
-AOT cache is a natural evolution of Class Data Sharing (CDS). 
-
-To use this feature, an AOT cache should be created for the particular classpath of CAS. It is possible to
-create this cache on the deployed instance, or during a training
-run performed for example when packaging the application thanks to a hook-point provided by the
-Spring Framework to ease such use case. Once the cache is available, users should opt in to use
-it via a JVM flag.
+Run the CAS web application as a *standalone* executable WAR:
 
 ```bash
+./gradlew[.bat] clean executable
+```
 
+### CDS Support
+
+CDS is a JVM feature that can help reduce the startup time and memory footprint of Java applications. CAS via Spring Boot
+now has support for easy creation of a CDS friendly layout. This layout can be created by extracting the CAS web application file
+with the help of the `tools` jarmode:
+
+```bash
+# Note:
+# You must first build the web application with "executable" turned off
 java -Djarmode=tools -jar build/libs/cas.war extract
 
 # Perform a training run once
-java -XX:AOTCacheOutput=${PWD}/cas/cas.aot -Dspring.context.exit=onRefresh -jar cas/cas.war
+java -XX:ArchiveClassesAtExit=cas.jsa -Dspring.context.exit=onRefresh -jar cas/cas.war
 
-# Run the CAS web application
-java -XX:AOTCache=${PWD}/cas/cas.aot -jar cas/cas.war
+# Run the CAS web application via CDS
+java XX:SharedArchiveFile=cas.jsa -jar cas/cas.war
 ```
 
 ## External
@@ -191,6 +175,7 @@ A `docker-compose.yml` is also provided to orchestrate the build:
 docker-compose build
 ```
 
+    
 ## Spring Boot
 
 You can use the Spring Boot build plugin for Gradle to create CAS container images.
@@ -208,21 +193,6 @@ The first build might take a long time because it has to download some container
 images and the JDK, but subsequent builds should be fast.
 
 
-# Software Bill of Materials (SBOM)
-
-The build supports generating a Software Bill of Materials (SBOM) for the CAS web application. This is done using
-the Gradle CycloneDX plugin, which creates an aggregate of all direct and transitive dependencies of a project
-and creates a valid CycloneDX SBOM. CycloneDX is a lightweight software bill of materials (SBOM)
-specification designed for use in application security contexts and supply chain component analysis.
-
-You may run the following Gradle task to generate the SBOM:
-
-```bash
-./gradlew cyclonedxBom
-```
-
-The generated SBOM file will be located in the `build/META-INF/sbom/application.cdx` file.
-
 # CAS Command-line Shell
 
 To launch into the CAS command-line shell:
@@ -230,27 +200,6 @@ To launch into the CAS command-line shell:
 ```bash
 ./gradlew[.bat] downloadShell runShell
 ```
-
-# Retrieve Java Classes
-
-This project includes a custom Gradle task named `getJavaClass` that copies a
-Java class from the upstream Apereo CAS source repository into the overlay project. The task uses
-the CAS version configured in `gradle.properties`, downloads
-the matching Apereo CAS source archive if needed, searches for the requested
-class, and copies the selected source file into `src/main/java` using the
-package structure declared by the class.
-
-```bash
-./gradlew[.bat] getJavaClass -PclassName=...
-```
-
-Note that only the simple/short class name is required.
-
-If exactly one matching class is found, the task copies it automatically. If multiple files
-with the same class name are found, the task prompts you to select one.
-
-Also note that the task **will overwrite** an existing file. If the destination file already exists,
-the task will **delete** and overwrite it.
 
 # Retrieve Overlay Resources
 
@@ -422,38 +371,3 @@ When you are ready, you can run the actual recipe:
 This will run the selected recipes and apply the changes. This will write changes locally to your source files on disk.
 Afterward, review the changes, and when you are comfortable with the changes, commit them.
 The run goal generates warnings in the build log wherever it makes changes to source files.
-
-
-# Diffs and Comparisons
-
-This project includes a custom Gradle task named `diff` that compares local
-overlay files against the corresponding files from the Apereo CAS source repository. The task is useful when
-maintaining a CAS overlay and you want to understand how your local
-customizations differ from the upstream CAS version your overlay is based on.
-
-The `diff` task:
-
-- Prompts for a CAS version at execution time.
-- Defaults to the `cas.version` Gradle property when available.
-- Downloads the matching Apereo CAS GitHub source archive.
-- Caches the downloaded archive under `build/cas-diff/cache`.
-- Reuses the cached archive on later runs.
-- Scans local overlay files.
-- Finds matching upstream CAS files.
-- Produces raw unified diff files.
-- Produces colorized HTML diff files.
-- Produces a styled HTML summary report.
-- Prepares side-by-side upstream and overlay folders for IDE diff tools.
-
-```bash
-./gradlew[.bat] diff
-```
-
-After the task completes, you can examine the results via:
-
-```
-open build/cas-diff/reports/index.html
-```
-
-If the cached ZIP file already exists, the task reuses it and does not download it again. To force a fresh download,
-delete the cached archive via `./gradlew[.bat] clean`.
