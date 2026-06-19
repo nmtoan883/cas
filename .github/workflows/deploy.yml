@@ -48,8 +48,10 @@ jobs:
           script: |
             cd /www/wwwroot/sso.nmt.io.vn
             echo "Killing old CAS process..."
-            pkill -f '[j]ava -jar cas.war' || true
+            if [ -f cas.pid ]; then kill -9 $(cat cas.pid) || true; rm cas.pid; fi
+            fuser -k 9090/tcp || true
             sleep 2
             echo "Starting new CAS process..."
             nohup java -jar cas.war > cas.log 2>&1 &
+            echo $! > cas.pid
             echo "Deploy successful!"
